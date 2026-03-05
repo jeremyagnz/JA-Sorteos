@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
 import { Card, CardBody } from '@/components/ui/Card';
 import { EditEventForm } from './EditEventForm';
+import { Event } from '@/types';
 
 interface EditEventPageProps {
   params: Promise<{ id: string }>;
@@ -14,17 +14,26 @@ export const metadata: Metadata = {
   title: 'Editar Evento - Admin EnduroCommunity',
 };
 
+async function getEvent(id: string): Promise<Event | null> {
+  try {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const res = await fetch(`${baseUrl}/api/events/${id}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data = await res.json() as { event: Event };
+    return data.event ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function EditEventPage({ params }: EditEventPageProps) {
   const { id } = await params;
-  const supabase = await createClient();
+  const event = await getEvent(id);
 
-  const { data: event, error } = await supabase
-    .from('events')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error || !event) {
+  if (!event) {
     notFound();
   }
 

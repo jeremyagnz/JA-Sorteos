@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { EventForm } from '@/components/events/EventForm';
 import { EventFormData } from '@/types';
 
@@ -13,54 +12,36 @@ export function CreateEventForm() {
   const handleSubmit = async (data: EventFormData) => {
     setIsLoading(true);
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const token =
+        window.netlifyIdentity?.currentUser()?.token?.access_token ?? '';
 
-      if (!user) return { error: 'No autenticado' };
-
-      let imageUrl: string | null = null;
-
-      // Upload image if provided
-      if (data.image) {
-        const fileExt = data.image.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
-
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('event-images')
-          .upload(fileName, data.image, {
-            cacheControl: '3600',
-            upsert: false,
-          });
-
-        if (uploadError) {
-          return { error: 'Error al subir la imagen: ' + uploadError.message };
-        }
-
-        const { data: urlData } = supabase.storage
-          .from('event-images')
-          .getPublicUrl(uploadData.path);
-
-        imageUrl = urlData.publicUrl;
-      }
-
-      const { error } = await supabase.from('events').insert({
-        title: data.title.trim(),
-        description: data.description.trim(),
-        location: data.location.trim(),
-        event_date: data.event_date,
-        end_date: data.end_date || null,
-        category: data.category,
-        difficulty: data.difficulty,
-        max_participants: data.max_participants ? parseInt(data.max_participants) : null,
-        price: parseFloat(data.price) || 0,
-        image_url: imageUrl,
-        status: data.status,
-        organizer_id: user.id,
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: data.title,
+          description: data.description,
+          location: data.location,
+          event_date: data.event_date,
+          end_date: data.end_date || null,
+          category: data.category,
+          difficulty: data.difficulty,
+          max_participants: data.max_participants
+            ? parseInt(data.max_participants)
+            : null,
+          price: parseFloat(data.price) || 0,
+          image_url: null,
+          status: data.status,
+        }),
       });
 
-      if (error) return { error: error.message };
+      if (!res.ok) {
+        const err = await res.json() as { error?: string };
+        return { error: err.error || 'Error al crear el evento' };
+      }
 
       router.push('/admin/events');
       router.refresh();

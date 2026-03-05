@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Trash2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 
 interface DeleteEventButtonProps {
@@ -26,16 +25,24 @@ export function DeleteEventButton({ eventId, eventTitle }: DeleteEventButtonProp
 
     setIsLoading(true);
     try {
-      const supabase = createClient();
+      const token =
+        window.netlifyIdentity?.currentUser()?.token?.access_token ?? '';
 
-      // Delete event (cascade will handle registrations)
-      const { error } = await supabase.from('events').delete().eq('id', eventId);
+      const res = await fetch(`/api/events/${eventId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-      if (error) throw error;
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        throw new Error(data.error || 'Error al eliminar');
+      }
 
       router.refresh();
-    } catch {
-      alert('Error al eliminar el evento');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar el evento');
     } finally {
       setIsLoading(false);
     }

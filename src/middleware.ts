@@ -1,8 +1,9 @@
-import { type NextRequest } from 'next/server';
-import { updateSession } from '@/lib/supabase/middleware';
+import { NextResponse } from 'next/server';
 
-export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+// Admin route protection is handled client-side by AdminGuard component.
+// This middleware is kept minimal — it just passes requests through.
+export function middleware() {
+  return NextResponse.next();
 }
 
 export const config = {
