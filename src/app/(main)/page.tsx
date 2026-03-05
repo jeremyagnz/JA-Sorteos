@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getAllEvents } from '@/lib/db/blobs';
 import { EventCard } from '@/components/events/EventCard';
 import { Event } from '@/types';
 import { Calendar } from 'lucide-react';
@@ -16,18 +17,26 @@ interface SearchParams {
 
 async function getEvents(params: SearchParams): Promise<Event[]> {
   try {
-    const url = new URL(
-      '/api/events',
-      process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    let events = await getAllEvents();
+    const now = new Date().toISOString();
+    events = events.filter(
+      (e) => e.status === 'published' && e.event_date >= now
     );
-    if (params.category) url.searchParams.set('category', params.category);
-    if (params.difficulty) url.searchParams.set('difficulty', params.difficulty);
-    if (params.search) url.searchParams.set('search', params.search);
-
-    const res = await fetch(url.toString(), { cache: 'no-store' });
-    if (!res.ok) return [];
-    const data = await res.json() as { events: Event[] };
-    return data.events ?? [];
+    if (params.category) {
+      events = events.filter((e) => e.category === params.category);
+    }
+    if (params.difficulty) {
+      events = events.filter((e) => e.difficulty === params.difficulty);
+    }
+    if (params.search) {
+      const q = params.search.toLowerCase();
+      events = events.filter((e) => e.title.toLowerCase().includes(q));
+    }
+    events = events.sort(
+      (a, b) =>
+        new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
+    );
+    return events as unknown as Event[];
   } catch {
     return [];
   }

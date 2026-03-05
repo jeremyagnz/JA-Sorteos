@@ -18,6 +18,7 @@ export interface IdentityUser {
  * Parse a Netlify Identity JWT without verifying (verification is done by
  * Netlify's edge infrastructure). This is safe because the token has already
  * passed Netlify's edge gateway signature check before reaching our function.
+ * We do validate expiry as an additional safety check.
  */
 function parseJwtPayload(token: string): IdentityUser | null {
   try {
@@ -26,7 +27,17 @@ function parseJwtPayload(token: string): IdentityUser | null {
     // Base64url decode the payload
     const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     const json = Buffer.from(base64, 'base64').toString('utf-8');
-    return JSON.parse(json) as IdentityUser;
+    const payload = JSON.parse(json) as IdentityUser & { exp?: number };
+
+    // Reject tokens that have expired
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      return null;
+    }
+
+    // Ensure required fields are present
+    if (!payload.id || !payload.email) return null;
+
+    return payload;
   } catch {
     return null;
   }

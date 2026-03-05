@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui/Card';
 import { EditEventForm } from './EditEventForm';
+import { getEventById } from '@/lib/db/blobs';
 import { Event } from '@/types';
 
 interface EditEventPageProps {
@@ -14,28 +15,16 @@ export const metadata: Metadata = {
   title: 'Editar Evento - Admin EnduroCommunity',
 };
 
-async function getEvent(id: string): Promise<Event | null> {
-  try {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/events/${id}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    const data = await res.json() as { event: Event };
-    return data.event ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export default async function EditEventPage({ params }: EditEventPageProps) {
   const { id } = await params;
-  const event = await getEvent(id);
+  const eventRecord = await getEventById(id);
 
-  if (!event) {
+  if (!eventRecord) {
     notFound();
   }
+
+  // Cast EventRecord to Event for the form
+  const event = eventRecord as unknown as Event;
 
   return (
     <div className="space-y-6">

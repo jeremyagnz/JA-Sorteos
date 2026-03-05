@@ -2,33 +2,22 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Calendar, Users, ClipboardList, TrendingUp } from 'lucide-react';
+import { getAllEvents } from '@/lib/db/blobs';
 
 export const metadata: Metadata = {
   title: 'Dashboard - Admin EnduroCommunity',
 };
 
-async function getEventsCount(): Promise<{ total: number; published: number }> {
-  try {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/events?all=1`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return { total: 0, published: 0 };
-    const data = await res.json() as { events: { status: string }[] };
-    const events = data.events ?? [];
-    return {
-      total: events.length,
-      published: events.filter((e) => e.status === 'published').length,
-    };
-  } catch {
-    return { total: 0, published: 0 };
-  }
-}
-
 export default async function AdminDashboard() {
-  const { total: totalEvents, published: publishedEvents } =
-    await getEventsCount();
+  let totalEvents = 0;
+  let publishedEvents = 0;
+  try {
+    const events = await getAllEvents();
+    totalEvents = events.length;
+    publishedEvents = events.filter((e) => e.status === 'published').length;
+  } catch {
+    // Blobs unavailable (e.g. local dev without netlify CLI)
+  }
 
   const stats = [
     {

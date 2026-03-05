@@ -10,10 +10,9 @@ import {
   Euro,
   ArrowLeft,
   Clock,
-  User,
 } from 'lucide-react';
+import { getEventById } from '@/lib/db/blobs';
 import { Badge } from '@/components/ui/Badge';
-import { Event } from '@/types';
 import {
   formatDateTime,
   formatPrice,
@@ -25,26 +24,11 @@ interface EventPageProps {
   params: Promise<{ id: string }>;
 }
 
-async function getEvent(id: string): Promise<Event | null> {
-  try {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/events/${id}`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return null;
-    const data = await res.json() as { event: Event };
-    return data.event ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export async function generateMetadata({
   params,
 }: EventPageProps): Promise<Metadata> {
   const { id } = await params;
-  const event = await getEvent(id);
+  const event = await getEventById(id);
   if (!event) return { title: 'Evento no encontrado' };
   return {
     title: `${event.title} - EnduroCommunity`,
@@ -54,13 +38,13 @@ export async function generateMetadata({
 
 export default async function EventPage({ params }: EventPageProps) {
   const { id } = await params;
-  const eventData = await getEvent(id);
+  const eventData = await getEventById(id);
 
   if (!eventData || eventData.status !== 'published') {
     notFound();
   }
 
-  const registrationsCount = eventData.registrations_count ?? 0;
+  const registrationsCount = 0; // registrations not yet tracked in Blobs
   const spotsLeft =
     eventData.max_participants !== null && eventData.max_participants !== undefined
       ? eventData.max_participants - registrationsCount
@@ -125,20 +109,6 @@ export default async function EventPage({ params }: EventPageProps) {
             </div>
           </div>
 
-          {/* Organizer */}
-          {eventData.organizer && (
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-              <div className="bg-orange-100 rounded-full p-2">
-                <User className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Organizado por</p>
-                <p className="font-medium text-gray-900">
-                  {eventData.organizer.full_name || eventData.organizer.email}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Sidebar */}

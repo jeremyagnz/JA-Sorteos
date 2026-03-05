@@ -6,29 +6,23 @@ import { Badge } from '@/components/ui/Badge';
 import { Plus, Edit, Eye, Calendar } from 'lucide-react';
 import { formatDate, getStatusColor, getStatusLabel } from '@/lib/utils';
 import { DeleteEventButton } from './DeleteEventButton';
-import { Event } from '@/types';
+import { getAllEvents, EventRecord } from '@/lib/db/blobs';
 
 export const metadata: Metadata = {
   title: 'Gestión de Eventos - Admin EnduroCommunity',
 };
 
-async function getAdminEvents(): Promise<Event[]> {
-  try {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/events?all=1`, {
-      cache: 'no-store',
-    });
-    if (!res.ok) return [];
-    const data = await res.json() as { events: Event[] };
-    return data.events ?? [];
-  } catch {
-    return [];
-  }
-}
-
 export default async function AdminEventsPage() {
-  const events = await getAdminEvents();
+  let events: EventRecord[] = [];
+  try {
+    const all = await getAllEvents();
+    events = all.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  } catch {
+    // Blobs unavailable (e.g. local dev without netlify CLI)
+  }
 
   return (
     <div className="space-y-6">

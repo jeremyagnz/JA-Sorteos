@@ -35,6 +35,8 @@ export function AdminGuard({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
     const tryIdentity = () => {
       if (!window.netlifyIdentity) {
         setStatus('unauthenticated');
@@ -54,14 +56,23 @@ export function AdminGuard({ children }: { children: ReactNode }) {
       const handleLogout = () => setStatus('unauthenticated');
       window.netlifyIdentity.on('login', handleLogin);
       window.netlifyIdentity.on('logout', handleLogout);
+
+      cleanup = () => {
+        window.netlifyIdentity?.off('login', handleLogin);
+        window.netlifyIdentity?.off('logout', handleLogout);
+      };
     };
 
     if (document.readyState === 'complete') {
       tryIdentity();
     } else {
       window.addEventListener('load', tryIdentity);
-      return () => window.removeEventListener('load', tryIdentity);
     }
+
+    return () => {
+      window.removeEventListener('load', tryIdentity);
+      cleanup?.();
+    };
   }, []);
 
   if (status === 'loading') {

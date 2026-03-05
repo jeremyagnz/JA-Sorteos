@@ -14,6 +14,8 @@ export function Header() {
   const [identityReady, setIdentityReady] = useState(false);
 
   useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
     const checkIdentity = () => {
       if (window.netlifyIdentity) {
         setIdentityReady(true);
@@ -31,7 +33,7 @@ export function Header() {
         window.netlifyIdentity.on('login', handleLogin);
         window.netlifyIdentity.on('logout', handleLogout);
 
-        return () => {
+        cleanup = () => {
           window.netlifyIdentity?.off('login', handleLogin);
           window.netlifyIdentity?.off('logout', handleLogout);
         };
@@ -43,8 +45,12 @@ export function Header() {
       checkIdentity();
     } else {
       window.addEventListener('load', checkIdentity);
-      return () => window.removeEventListener('load', checkIdentity);
     }
+
+    return () => {
+      window.removeEventListener('load', checkIdentity);
+      cleanup?.();
+    };
   }, []);
 
   const fetchUserRole = async (user: NetlifyIdentityUser) => {
