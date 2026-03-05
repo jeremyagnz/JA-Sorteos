@@ -28,10 +28,7 @@ export function DeleteEventButton({ eventId, eventTitle }: DeleteEventButtonProp
     try {
       const supabase = createClient();
 
-      // Delete registrations first
-      await supabase.from('registrations').delete().eq('event_id', eventId);
-
-      // Delete event
+      // Delete event (cascade will handle registrations)
       const { error } = await supabase.from('events').delete().eq('id', eventId);
 
       if (error) throw error;

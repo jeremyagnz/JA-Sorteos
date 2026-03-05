@@ -73,7 +73,6 @@ export function EditEventForm({ event }: EditEventFormProps) {
           price: parseFloat(data.price) || 0,
           image_url: imageUrl,
           status: data.status,
-          updated_at: new Date().toISOString(),
         })
         .eq('id', event.id);
 
