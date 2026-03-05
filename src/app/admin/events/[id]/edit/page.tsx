@@ -2,9 +2,10 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
 import { Card, CardBody } from '@/components/ui/Card';
 import { EditEventForm } from './EditEventForm';
+import { getEventById } from '@/lib/db/blobs';
+import { Event } from '@/types';
 
 interface EditEventPageProps {
   params: Promise<{ id: string }>;
@@ -16,17 +17,14 @@ export const metadata: Metadata = {
 
 export default async function EditEventPage({ params }: EditEventPageProps) {
   const { id } = await params;
-  const supabase = await createClient();
+  const eventRecord = await getEventById(id);
 
-  const { data: event, error } = await supabase
-    .from('events')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error || !event) {
+  if (!eventRecord) {
     notFound();
   }
+
+  // Cast EventRecord to Event for the form
+  const event = eventRecord as unknown as Event;
 
   return (
     <div className="space-y-6">

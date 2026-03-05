@@ -10,11 +10,9 @@ import {
   Euro,
   ArrowLeft,
   Clock,
-  User,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { getEventById } from '@/lib/db/blobs';
 import { Badge } from '@/components/ui/Badge';
-import { RegisterButton } from '@/components/events/RegisterButton';
 import {
   formatDateTime,
   formatPrice,
@@ -30,15 +28,8 @@ export async function generateMetadata({
   params,
 }: EventPageProps): Promise<Metadata> {
   const { id } = await params;
-  const supabase = await createClient();
-  const { data: event } = await supabase
-    .from('events')
-    .select('title, description')
-    .eq('id', id)
-    .single();
-
+  const event = await getEventById(id);
   if (!event) return { title: 'Evento no encontrado' };
-
   return {
     title: `${event.title} - EnduroCommunity`,
     description: event.description?.slice(0, 160),
@@ -47,45 +38,15 @@ export async function generateMetadata({
 
 export default async function EventPage({ params }: EventPageProps) {
   const { id } = await params;
-  const supabase = await createClient();
-
-  const [{ data: eventData }, { data: { user } }] = await Promise.all([
-    supabase
-      .from('events')
-      .select(
-        `
-        *,
-        organizer:profiles!events_organizer_id_fkey(id, full_name, email),
-        registrations_count:registrations(count)
-      `
-      )
-      .eq('id', id)
-      .single(),
-    supabase.auth.getUser(),
-  ]);
+  const eventData = await getEventById(id);
 
   if (!eventData || eventData.status !== 'published') {
     notFound();
   }
 
-  const registrationsCount =
-    Array.isArray(eventData.registrations_count)
-      ? (eventData.registrations_count[0] as { count: number })?.count || 0
-      : 0;
-
-  let isRegistered = false;
-  if (user) {
-    const { data: reg } = await supabase
-      .from('registrations')
-      .select('id')
-      .eq('event_id', id)
-      .eq('user_id', user.id)
-      .single();
-    isRegistered = !!reg;
-  }
-
+  const registrationsCount = 0; // registrations not yet tracked in Blobs
   const spotsLeft =
-    eventData.max_participants !== null
+    eventData.max_participants !== null && eventData.max_participants !== undefined
       ? eventData.max_participants - registrationsCount
       : null;
   const isFull = spotsLeft !== null && spotsLeft <= 0;
@@ -148,20 +109,6 @@ export default async function EventPage({ params }: EventPageProps) {
             </div>
           </div>
 
-          {/* Organizer */}
-          {eventData.organizer && (
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-              <div className="bg-orange-100 rounded-full p-2">
-                <User className="h-5 w-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Organizado por</p>
-                <p className="font-medium text-gray-900">
-                  {eventData.organizer.full_name || eventData.organizer.email}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Sidebar */}
@@ -213,36 +160,34 @@ export default async function EventPage({ params }: EventPageProps) {
                 </div>
               </div>
 
-              {eventData.max_participants !== null && (
-                <div className="flex items-start gap-3">
-                  <Users className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-gray-500">Plazas</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      {registrationsCount} / {eventData.max_participants} inscritos
-                    </p>
-                    {spotsLeft !== null && spotsLeft > 0 && (
-                      <p className="text-xs text-green-600">
-                        {spotsLeft} plazas disponibles
+              {eventData.max_participants !== null &&
+                eventData.max_participants !== undefined && (
+                  <div className="flex items-start gap-3">
+                    <Users className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500">Plazas</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {registrationsCount} / {eventData.max_participants} inscritos
                       </p>
-                    )}
-                    {isFull && (
-                      <p className="text-xs text-red-600 font-medium">
-                        Evento completo
-                      </p>
-                    )}
+                      {spotsLeft !== null && spotsLeft > 0 && (
+                        <p className="text-xs text-green-600">
+                          {spotsLeft} plazas disponibles
+                        </p>
+                      )}
+                      {isFull && (
+                        <p className="text-xs text-red-600 font-medium">
+                          Evento completo
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
 
             <div className="pt-2 border-t border-gray-100">
-              <RegisterButton
-                eventId={id}
-                isRegistered={isRegistered}
-                isFull={isFull}
-                userId={user?.id || null}
-              />
+              <p className="text-sm text-gray-500 text-center">
+                Inicia sesión para inscribirte en este evento.
+              </p>
             </div>
           </div>
         </div>

@@ -1,29 +1,28 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Plus, Edit, Eye, Calendar } from 'lucide-react';
 import { formatDate, getStatusColor, getStatusLabel } from '@/lib/utils';
 import { DeleteEventButton } from './DeleteEventButton';
+import { getAllEvents, EventRecord } from '@/lib/db/blobs';
 
 export const metadata: Metadata = {
   title: 'Gestión de Eventos - Admin EnduroCommunity',
 };
 
 export default async function AdminEventsPage() {
-  const supabase = await createClient();
-
-  const { data: events, error } = await supabase
-    .from('events')
-    .select(
-      `
-      *,
-      registrations_count:registrations(count)
-    `
-    )
-    .order('created_at', { ascending: false });
+  let events: EventRecord[] = [];
+  try {
+    const all = await getAllEvents();
+    events = all.sort(
+      (a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  } catch {
+    // Blobs unavailable (e.g. local dev without netlify CLI)
+  }
 
   return (
     <div className="space-y-6">
@@ -42,14 +41,8 @@ export default async function AdminEventsPage() {
         </Link>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-          Error al cargar los eventos
-        </div>
-      )}
-
       <Card>
-        {!events || events.length === 0 ? (
+        {events.length === 0 ? (
           <div className="px-6 py-12 text-center">
             <Calendar className="h-12 w-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 font-medium">No hay eventos creados</p>
@@ -77,66 +70,59 @@ export default async function AdminEventsPage() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                     Estado
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide hidden lg:table-cell">
-                    Inscritos
-                  </th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wide">
                     Acciones
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {events.map((event) => {
-                  const registrationsCount = Array.isArray(event.registrations_count)
-                    ? (event.registrations_count[0] as { count: number })?.count || 0
-                    : 0;
-
-                  return (
-                    <tr key={event.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900 text-sm truncate max-w-[200px]">
-                          {event.title}
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 hidden sm:table-cell">
-                        <span className="text-sm text-gray-600">{event.category}</span>
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        <span className="text-sm text-gray-600">
-                          {formatDate(event.event_date)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge className={getStatusColor(event.status)}>
-                          {getStatusLabel(event.status)}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 hidden lg:table-cell">
-                        <span className="text-sm text-gray-600">
-                          {registrationsCount}
-                          {event.max_participants && ` / ${event.max_participants}`}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-2">
-                          {event.status === 'published' && (
-                            <Link href={`/events/${event.id}`}>
-                              <Button variant="ghost" size="sm">
-                                <Eye className="h-3.5 w-3.5" />
-                              </Button>
-                            </Link>
-                          )}
-                          <Link href={`/admin/events/${event.id}/edit`}>
+                {events.map((event) => (
+                  <tr
+                    key={event.id}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900 text-sm truncate max-w-[200px]">
+                        {event.title}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      <span className="text-sm text-gray-600">
+                        {event.category}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <span className="text-sm text-gray-600">
+                        {formatDate(event.event_date)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge className={getStatusColor(event.status)}>
+                        {getStatusLabel(event.status)}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        {event.status === 'published' && (
+                          <Link href={`/events/${event.id}`}>
                             <Button variant="ghost" size="sm">
-                              <Edit className="h-3.5 w-3.5" />
+                              <Eye className="h-3.5 w-3.5" />
                             </Button>
                           </Link>
-                          <DeleteEventButton eventId={event.id} eventTitle={event.title} />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        )}
+                        <Link href={`/admin/events/${event.id}/edit`}>
+                          <Button variant="ghost" size="sm">
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                        </Link>
+                        <DeleteEventButton
+                          eventId={event.id}
+                          eventTitle={event.title}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

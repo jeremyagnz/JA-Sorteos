@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { getAllEvents } from '@/lib/db/blobs';
 import { EventCard } from '@/components/events/EventCard';
 import { Event } from '@/types';
 import { Calendar } from 'lucide-react';
@@ -15,47 +15,40 @@ interface SearchParams {
   search?: string;
 }
 
+async function getEvents(params: SearchParams): Promise<Event[]> {
+  try {
+    let events = await getAllEvents();
+    const now = new Date().toISOString();
+    events = events.filter(
+      (e) => e.status === 'published' && e.event_date >= now
+    );
+    if (params.category) {
+      events = events.filter((e) => e.category === params.category);
+    }
+    if (params.difficulty) {
+      events = events.filter((e) => e.difficulty === params.difficulty);
+    }
+    if (params.search) {
+      const q = params.search.toLowerCase();
+      events = events.filter((e) => e.title.toLowerCase().includes(q));
+    }
+    events = events.sort(
+      (a, b) =>
+        new Date(a.event_date).getTime() - new Date(b.event_date).getTime()
+    );
+    return events as unknown as Event[];
+  } catch {
+    return [];
+  }
+}
+
 export default async function HomePage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
 }) {
   const { category, difficulty, search } = await searchParams;
-  const supabase = await createClient();
-
-  let query = supabase
-    .from('events')
-    .select(
-      `
-      *,
-      organizer:profiles!events_organizer_id_fkey(id, full_name, email),
-      registrations_count:registrations(count)
-    `
-    )
-    .eq('status', 'published')
-    .gte('event_date', new Date().toISOString())
-    .order('event_date', { ascending: true });
-
-  if (category) {
-    query = query.eq('category', category);
-  }
-
-  if (difficulty) {
-    query = query.eq('difficulty', difficulty);
-  }
-
-  if (search) {
-    query = query.ilike('title', `%${search}%`);
-  }
-
-  const { data: eventsData, error } = await query;
-
-  const events: Event[] = (eventsData || []).map((e: Record<string, unknown>) => ({
-    ...e,
-    registrations_count: Array.isArray(e.registrations_count)
-      ? (e.registrations_count[0] as { count: number })?.count || 0
-      : 0,
-  })) as Event[];
+  const events = await getEvents({ category, difficulty, search });
 
   const categories = [
     'Enduro', 'Motocross', 'Trial', 'Cross Country', 'Rally',
@@ -102,13 +95,7 @@ export default async function HomePage({
       </div>
 
       {/* Events Grid */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          Error al cargar los eventos. Por favor, inténtalo de nuevo.
-        </div>
-      )}
-
-      {!error && events.length === 0 && (
+      {events.length === 0 && (
         <div className="text-center py-16">
           <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-700 mb-2">

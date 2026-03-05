@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { EventForm } from '@/components/events/EventForm';
 import { Event, EventFormData } from '@/types';
 
@@ -17,52 +16,19 @@ export function EditEventForm({ event }: EditEventFormProps) {
   const handleSubmit = async (data: EventFormData) => {
     setIsLoading(true);
     try {
-      const supabase = createClient();
+      const token =
+        window.netlifyIdentity?.currentUser()?.token?.access_token ?? '';
 
-      let imageUrl = event.image_url;
-
-      // Upload new image if provided
-      if (data.image) {
-        const fileExt = data.image.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
-
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('event-images')
-          .upload(fileName, data.image, {
-            cacheControl: '3600',
-            upsert: false,
-          });
-
-        if (uploadError) {
-          return { error: 'Error al subir la imagen: ' + uploadError.message };
-        }
-
-        // Delete old image if exists
-        if (event.image_url) {
-          const oldPath = event.image_url.split('/').pop();
-          if (oldPath) {
-            await supabase.storage.from('event-images').remove([oldPath]);
-          }
-        }
-
-        const { data: urlData } = supabase.storage
-          .from('event-images')
-          .getPublicUrl(uploadData.path);
-
-        imageUrl = urlData.publicUrl;
-      }
-
-      // If image was removed
-      if (!data.image && !event.image_url) {
-        imageUrl = null;
-      }
-
-      const { error } = await supabase
-        .from('events')
-        .update({
-          title: data.title.trim(),
-          description: data.description.trim(),
-          location: data.location.trim(),
+      const res = await fetch(`/api/events/${event.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: data.title,
+          description: data.description,
+          location: data.location,
           event_date: data.event_date,
           end_date: data.end_date || null,
           category: data.category,
@@ -71,12 +37,15 @@ export function EditEventForm({ event }: EditEventFormProps) {
             ? parseInt(data.max_participants)
             : null,
           price: parseFloat(data.price) || 0,
-          image_url: imageUrl,
+          image_url: event.image_url,
           status: data.status,
-        })
-        .eq('id', event.id);
+        }),
+      });
 
-      if (error) return { error: error.message };
+      if (!res.ok) {
+        const err = await res.json() as { error?: string };
+        return { error: err.error || 'Error al actualizar el evento' };
+      }
 
       router.push('/admin/events');
       router.refresh();

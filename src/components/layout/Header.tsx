@@ -1,32 +1,95 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Menu, X, User, LogOut, Settings, Calendar, Trophy } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { Profile } from '@/types';
 import { Button } from '@/components/ui/Button';
 
-interface HeaderProps {
-  user: Profile | null;
-}
+type UserWithRole = NetlifyIdentityUser & { role?: string };
 
-export function Header({ user }: HeaderProps) {
-  const router = useRouter();
+export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<UserWithRole | null>(null);
+  const [identityReady, setIdentityReady] = useState(false);
 
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+
+    const checkIdentity = () => {
+      if (window.netlifyIdentity) {
+        setIdentityReady(true);
+        const u = window.netlifyIdentity.currentUser();
+        if (u) {
+          fetchUserRole(u);
+        }
+
+        const handleLogin = (user?: NetlifyIdentityUser) => {
+          if (user) fetchUserRole(user);
+          window.netlifyIdentity?.close();
+        };
+        const handleLogout = () => setCurrentUser(null);
+
+        window.netlifyIdentity.on('login', handleLogin);
+        window.netlifyIdentity.on('logout', handleLogout);
+
+        cleanup = () => {
+          window.netlifyIdentity?.off('login', handleLogin);
+          window.netlifyIdentity?.off('logout', handleLogout);
+        };
+      }
+    };
+
+    // netlify-identity-widget is initialised in RootLayout via a script tag
+    if (document.readyState === 'complete') {
+      checkIdentity();
+    } else {
+      window.addEventListener('load', checkIdentity);
+    }
+
+    return () => {
+      window.removeEventListener('load', checkIdentity);
+      cleanup?.();
+    };
+  }, []);
+
+  const fetchUserRole = async (user: NetlifyIdentityUser) => {
+    try {
+      const token = user.token?.access_token;
+      if (!token) {
+        setCurrentUser({ ...user });
+        return;
+      }
+      const res = await fetch('/api/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json() as { user: { role?: string } };
+        setCurrentUser({ ...user, role: data.user.role });
+      } else {
+        setCurrentUser({ ...user });
+      }
+    } catch {
+      setCurrentUser({ ...user });
+    }
   };
 
-  const navLinks = [
-    { href: '/', label: 'Eventos', icon: Calendar },
-  ];
+  const handleLogin = () => {
+    window.netlifyIdentity?.open('login');
+  };
+
+  const handleSignup = () => {
+    window.netlifyIdentity?.open('signup');
+  };
+
+  const handleLogout = () => {
+    window.netlifyIdentity?.logout();
+  };
+
+  const displayName =
+    currentUser?.user_metadata?.full_name ?? currentUser?.email ?? '';
+
+  const navLinks = [{ href: '/', label: 'Eventos', icon: Calendar }];
 
   return (
     <header className="bg-gray-900 shadow-lg sticky top-0 z-50">
@@ -54,7 +117,7 @@ export function Header({ user }: HeaderProps) {
                 {link.label}
               </Link>
             ))}
-            {user?.role === 'admin' && (
+            {currentUser?.role === 'admin' && (
               <Link
                 href="/admin"
                 className="flex items-center gap-1.5 text-orange-400 hover:text-orange-300 transition-colors text-sm font-medium"
@@ -67,7 +130,7 @@ export function Header({ user }: HeaderProps) {
 
           {/* User Actions */}
           <div className="hidden md:flex items-center gap-3">
-            {user ? (
+            {currentUser ? (
               <div className="relative">
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
@@ -76,22 +139,12 @@ export function Header({ user }: HeaderProps) {
                   <div className="bg-orange-500 rounded-full p-1.5">
                     <User className="h-4 w-4 text-white" />
                   </div>
-                  <span className="text-sm font-medium">
-                    {user.full_name || user.email}
-                  </span>
+                  <span className="text-sm font-medium">{displayName}</span>
                 </button>
 
                 {userMenuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-10">
-                    <Link
-                      href="/profile"
-                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                      onClick={() => setUserMenuOpen(false)}
-                    >
-                      <User className="h-4 w-4" />
-                      Mi Perfil
-                    </Link>
-                    {user.role === 'admin' && (
+                    {currentUser.role === 'admin' && (
                       <Link
                         href="/admin"
                         className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
@@ -112,20 +165,21 @@ export function Header({ user }: HeaderProps) {
                   </div>
                 )}
               </div>
-            ) : (
+            ) : identityReady ? (
               <>
-                <Link href="/login">
-                  <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white hover:bg-gray-800">
-                    Iniciar sesión
-                  </Button>
-                </Link>
-                <Link href="/register">
-                  <Button variant="primary" size="sm">
-                    Registrarse
-                  </Button>
-                </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLogin}
+                  className="text-gray-300 hover:text-white hover:bg-gray-800"
+                >
+                  Iniciar sesión
+                </Button>
+                <Button variant="primary" size="sm" onClick={handleSignup}>
+                  Registrarse
+                </Button>
               </>
-            )}
+            ) : null}
           </div>
 
           {/* Mobile menu button */}
@@ -133,7 +187,11 @@ export function Header({ user }: HeaderProps) {
             className="md:hidden text-gray-400 hover:text-white"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
-            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {mobileMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
           </button>
         </div>
       </div>
@@ -153,7 +211,7 @@ export function Header({ user }: HeaderProps) {
                 {link.label}
               </Link>
             ))}
-            {user?.role === 'admin' && (
+            {currentUser?.role === 'admin' && (
               <Link
                 href="/admin"
                 className="flex items-center gap-2 text-orange-400 hover:text-orange-300 py-2 text-sm font-medium"
@@ -164,7 +222,7 @@ export function Header({ user }: HeaderProps) {
               </Link>
             )}
             <hr className="border-gray-700" />
-            {user ? (
+            {currentUser ? (
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-2 text-red-400 hover:text-red-300 py-2 text-sm font-medium w-full"
@@ -174,16 +232,22 @@ export function Header({ user }: HeaderProps) {
               </button>
             ) : (
               <div className="flex gap-2 pt-2">
-                <Link href="/login" className="flex-1" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="outline" size="sm" className="w-full text-gray-300 border-gray-600 hover:bg-gray-700">
-                    Iniciar sesión
-                  </Button>
-                </Link>
-                <Link href="/register" className="flex-1" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="primary" size="sm" className="w-full">
-                    Registrarse
-                  </Button>
-                </Link>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleLogin}
+                  className="flex-1 text-gray-300 border-gray-600 hover:bg-gray-700"
+                >
+                  Iniciar sesión
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSignup}
+                  className="flex-1"
+                >
+                  Registrarse
+                </Button>
               </div>
             )}
           </div>
