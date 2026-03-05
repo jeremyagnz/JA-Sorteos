@@ -40,15 +40,19 @@ export function Header() {
       }
     };
 
-    // netlify-identity-widget is initialised in RootLayout via a script tag
+    // The widget is initialised asynchronously by NetlifyIdentityProvider.
+    // Listen for both "load" and the custom "netlify-identity-ready" event so
+    // we pick it up regardless of which fires first relative to this effect.
     if (document.readyState === 'complete') {
       checkIdentity();
     } else {
       window.addEventListener('load', checkIdentity);
     }
+    window.addEventListener('netlify-identity-ready', checkIdentity);
 
     return () => {
       window.removeEventListener('load', checkIdentity);
+      window.removeEventListener('netlify-identity-ready', checkIdentity);
       cleanup?.();
     };
   }, []);

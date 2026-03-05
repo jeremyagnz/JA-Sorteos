@@ -11,6 +11,7 @@ declare global {
 
   interface Window {
     netlifyIdentity?: {
+      init: (opts?: { APIUrl?: string; logo?: boolean; locale?: string }) => void;
       open: (tab?: string) => void;
       close: () => void;
       on: (
