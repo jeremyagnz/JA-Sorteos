@@ -18,8 +18,9 @@ interface SearchParams {
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  searchParams: Promise<SearchParams>;
 }) {
+  const { category, difficulty, search } = await searchParams;
   const supabase = await createClient();
 
   let query = supabase
@@ -35,16 +36,16 @@ export default async function HomePage({
     .gte('event_date', new Date().toISOString())
     .order('event_date', { ascending: true });
 
-  if (searchParams.category) {
-    query = query.eq('category', searchParams.category);
+  if (category) {
+    query = query.eq('category', category);
   }
 
-  if (searchParams.difficulty) {
-    query = query.eq('difficulty', searchParams.difficulty);
+  if (difficulty) {
+    query = query.eq('difficulty', difficulty);
   }
 
-  if (searchParams.search) {
-    query = query.ilike('title', `%${searchParams.search}%`);
+  if (search) {
+    query = query.ilike('title', `%${search}%`);
   }
 
   const { data: eventsData, error } = await query;
@@ -78,7 +79,7 @@ export default async function HomePage({
         <Link
           href="/"
           className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-            !searchParams.category
+            !category
               ? 'bg-orange-500 text-white'
               : 'bg-white text-gray-700 border border-gray-200 hover:border-orange-300'
           }`}
@@ -90,7 +91,7 @@ export default async function HomePage({
             key={cat}
             href={`/?category=${encodeURIComponent(cat)}`}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-              searchParams.category === cat
+              category === cat
                 ? 'bg-orange-500 text-white'
                 : 'bg-white text-gray-700 border border-gray-200 hover:border-orange-300'
             }`}
@@ -114,7 +115,7 @@ export default async function HomePage({
             No hay eventos disponibles
           </h2>
           <p className="text-gray-500">
-            {searchParams.category || searchParams.search
+            {category || search
               ? 'No se encontraron eventos con estos filtros'
               : 'Próximamente habrá nuevos eventos'}
           </p>

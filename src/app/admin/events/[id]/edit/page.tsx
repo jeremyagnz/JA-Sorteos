@@ -7,7 +7,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { EditEventForm } from './EditEventForm';
 
 interface EditEventPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export const metadata: Metadata = {
@@ -15,12 +15,13 @@ export const metadata: Metadata = {
 };
 
 export default async function EditEventPage({ params }: EditEventPageProps) {
+  const { id } = await params;
   const supabase = await createClient();
 
   const { data: event, error } = await supabase
     .from('events')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single();
 
   if (error || !event) {

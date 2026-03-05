@@ -23,17 +23,18 @@ import {
 } from '@/lib/utils';
 
 interface EventPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function generateMetadata({
   params,
 }: EventPageProps): Promise<Metadata> {
+  const { id } = await params;
   const supabase = await createClient();
   const { data: event } = await supabase
     .from('events')
     .select('title, description')
-    .eq('id', params.id)
+    .eq('id', id)
     .single();
 
   if (!event) return { title: 'Evento no encontrado' };
@@ -45,6 +46,7 @@ export async function generateMetadata({
 }
 
 export default async function EventPage({ params }: EventPageProps) {
+  const { id } = await params;
   const supabase = await createClient();
 
   const [{ data: eventData }, { data: { user } }] = await Promise.all([
@@ -57,7 +59,7 @@ export default async function EventPage({ params }: EventPageProps) {
         registrations_count:registrations(count)
       `
       )
-      .eq('id', params.id)
+      .eq('id', id)
       .single(),
     supabase.auth.getUser(),
   ]);
@@ -76,7 +78,7 @@ export default async function EventPage({ params }: EventPageProps) {
     const { data: reg } = await supabase
       .from('registrations')
       .select('id')
-      .eq('event_id', params.id)
+      .eq('event_id', id)
       .eq('user_id', user.id)
       .single();
     isRegistered = !!reg;
@@ -236,7 +238,7 @@ export default async function EventPage({ params }: EventPageProps) {
 
             <div className="pt-2 border-t border-gray-100">
               <RegisterButton
-                eventId={params.id}
+                eventId={id}
                 isRegistered={isRegistered}
                 isFull={isFull}
                 userId={user?.id || null}
